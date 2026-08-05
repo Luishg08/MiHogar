@@ -8,6 +8,12 @@ export default defineConfig({
             '@': fileURLToPath(new URL('./src', import.meta.url))
         }
     },
+    server: {
+        allowedHosts: ['mihogar-t9ja.onrender.com']
+    },
+    preview: {
+        allowedHosts: ['mihogar-t9ja.onrender.com']
+    },
     plugins: [
         react(),
         VitePWA({
