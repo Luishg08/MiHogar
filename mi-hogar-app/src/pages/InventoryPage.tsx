@@ -106,10 +106,9 @@ export function InventoryPage() {
       <button
         onClick={() => setFormOpen(true)}
         disabled={!online}
-        className="btn-primary fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-xl disabled:opacity-50"
-        aria-label="Agregar producto"
+        className="btn-primary mt-3 flex w-full items-center justify-center gap-2 py-3.5 text-sm"
       >
-        <Plus className="h-6 w-6" />
+        <Plus className="h-5 w-5" /> Agregar producto
       </button>
 
       <ProductFormModal open={formOpen} onClose={() => setFormOpen(false)} />

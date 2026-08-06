@@ -127,7 +127,6 @@ export function ProductFormModal({ open, onClose, product }: Props) {
               placeholder="Nombre del producto (ej. Leche)"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              autoFocus
               required
             />
             <div className="flex items-center gap-2">

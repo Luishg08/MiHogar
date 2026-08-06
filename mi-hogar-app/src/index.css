@@ -103,7 +103,25 @@ body {
 }
 
 .safe-bottom {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 11rem);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5.5rem);
+}
+
+/* Fondo de pantalla de la app (foto de fondo opcional por usuario) */
+html.has-app-bg {
+  background-color: var(--bg);
+}
+html.has-app-bg body {
+  background-image: var(--app-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+html.has-app-bg body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgba(0, 0, 0, 0.38);
 }
 
 @layer utilities {

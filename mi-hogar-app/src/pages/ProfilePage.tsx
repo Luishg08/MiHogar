@@ -3,17 +3,20 @@ import {
   Check,
   Copy,
   Home,
+  Image as ImageIcon,
   LogOut,
   Moon,
   Palette,
   ShieldCheck,
   Sun,
+  Trash2,
   Users,
   X
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/app'
 import { Avatar } from '@/components/Avatar'
+import { AvatarCropModal } from '@/components/AvatarCropModal'
 import { getPalettes, isValidHex } from '@/lib/theme'
 import type { AdminUser, Theme } from '@/types'
 import { supabase } from '@/lib/supabase'
@@ -26,15 +29,21 @@ const SWATCHES = [
 export function ProfilePage() {
   const profile = useAppStore((s) => s.profile)
   const home = useAppStore((s) => s.home)
+  const homes = useAppStore((s) => s.homes)
   const members = useAppStore((s) => s.members)
   const user = useAppStore((s) => s.user)
   const online = useAppStore((s) => s.online)
   const saveProfile = useAppStore((s) => s.saveProfile)
   const signOut = useAppStore((s) => s.signOut)
+  const switchHome = useAppStore((s) => s.switchHome)
+  const leaveHome = useAppStore((s) => s.leaveHome)
 
   const [name, setName] = useState(profile?.full_name ?? '')
   const [savingName, setSavingName] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const bgFileRef = useRef<HTMLInputElement>(null)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const [busyHome, setBusyHome] = useState<string | null>(null)
   const theme = profile?.theme ?? { mode: 'light', primary: '#0f766e', accent: '#f59e0b' }
 
   const updateTheme = (patch: Partial<Theme>) => {
@@ -54,10 +63,17 @@ export function ProfilePage() {
     toast.success('Nombre actualizado')
   }
 
-  const uploadAvatar = async (file: File) => {
+  const pickAvatar = (file: File) => {
+    const url = URL.createObjectURL(file)
+    setCropSrc(url)
+  }
+
+  const saveAvatar = async (blob: Blob) => {
     if (!user) return
-    const path = `avatar-${user.id}.${file.name.split('.').pop() ?? 'jpg'}`
-    const { error } = await supabase.storage.from('product-photos').upload(path, file, { upsert: true })
+    const path = `avatar-${user.id}.jpg`
+    const { error } = await supabase.storage.from('product-photos').upload(path, blob, { upsert: true })
+    URL.revokeObjectURL(cropSrc ?? '')
+    setCropSrc(null)
     if (error) {
       toast.error(error.message)
       return
@@ -65,6 +81,50 @@ export function ProfilePage() {
     const { data } = supabase.storage.from('product-photos').getPublicUrl(path)
     await saveProfile({ avatar_url: data.publicUrl })
     toast.success('Foto de perfil actualizada')
+  }
+
+  const uploadBackground = async (file: File) => {
+    if (!user) return
+    const path = `backgrounds/${user.id}.${file.name.split('.').pop() ?? 'jpg'}`
+    const { error } = await supabase.storage.from('product-photos').upload(path, file, { upsert: true })
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    const { data } = supabase.storage.from('product-photos').getPublicUrl(path)
+    await saveProfile({ background_url: data.publicUrl })
+    toast.success('Fondo de la aplicación actualizado')
+  }
+
+  const clearBackground = async () => {
+    await saveProfile({ background_url: null })
+    toast.success('Fondo restablecido')
+  }
+
+  const doSwitch = async (id: string) => {
+    if (id === home?.id) return
+    setBusyHome(id)
+    try {
+      await switchHome(id)
+      toast.success('Hogar cambiado')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo cambiar de hogar')
+    } finally {
+      setBusyHome(null)
+    }
+  }
+
+  const doLeave = async (id: string) => {
+    if (!confirm('¿Salirte de este hogar?')) return
+    setBusyHome(id)
+    try {
+      await leaveHome(id)
+      toast.success('Saliste del hogar')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo salir del hogar')
+    } finally {
+      setBusyHome(null)
+    }
   }
 
   const colorSwatches = getPalettes()
@@ -90,7 +150,8 @@ export function ProfilePage() {
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0]
-            if (f) void uploadAvatar(f)
+            if (f) pickAvatar(f)
+            e.target.value = ''
           }}
         />
         <div className="w-full">
@@ -102,6 +163,52 @@ export function ProfilePage() {
           </div>
         </div>
         <p className="text-xs text-muted">{user?.email}</p>
+      </div>
+
+      <div className="card p-4">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-extrabold">
+          <ImageIcon className="h-4 w-4 text-[var(--primary)]" /> Fondo de la aplicación
+        </h3>
+        <p className="mb-3 text-xs text-muted">
+          Elige una foto de fondo para ambientar toda la app.
+        </p>
+        {profile?.background_url ? (
+          <div className="flex items-center gap-3">
+            <img
+              src={profile.background_url}
+              alt="Fondo de la app"
+              className="h-16 w-28 rounded-2xl object-cover"
+            />
+            <div className="flex flex-1 flex-col gap-2">
+              <button className="btn-ghost py-2.5 text-xs" onClick={() => bgFileRef.current?.click()} disabled={!online}>
+                Cambiar foto
+              </button>
+              <button className="flex items-center justify-center gap-1.5 rounded-2xl bg-red-500/10 py-2.5 text-xs font-bold text-red-500" onClick={() => void clearBackground()}>
+                <Trash2 className="h-3.5 w-3.5" /> Quitar fondo
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => bgFileRef.current?.click()}
+            disabled={!online}
+            className="flex h-16 w-full flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-[var(--border)] text-muted"
+          >
+            <ImageIcon className="h-5 w-5" />
+            <span className="text-xs font-semibold">Subir foto de fondo</span>
+          </button>
+        )}
+        <input
+          ref={bgFileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void uploadBackground(f)
+            e.target.value = ''
+          }}
+        />
       </div>
 
       <div className="card p-4">
@@ -165,10 +272,56 @@ export function ProfilePage() {
 
       <div className="card p-4">
         <h3 className="mb-3 flex items-center gap-2 text-sm font-extrabold">
-          <Home className="h-4 w-4 text-[var(--primary)]" /> Mi hogar
+          <Home className="h-4 w-4 text-[var(--primary)]" /> Mis hogares ({homes.length})
         </h3>
-        <p className="text-sm font-semibold">{home?.name}</p>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="space-y-2">
+          {homes.map((h) => {
+            const active = h.id === home?.id
+            return (
+              <div
+                key={h.id}
+                className={`flex items-center gap-3 rounded-2xl border p-3 ${
+                  active ? 'border-[var(--primary)] bg-[var(--primary-soft)]' : 'border-[var(--border)]'
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+                    {h.name}
+                    {active && (
+                      <span className="flex h-4 items-center rounded-full bg-[var(--primary)] px-1.5 text-[9px] font-extrabold text-[var(--on-primary)]">
+                        ACTIVO
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] text-muted">
+                    {h.role === 'owner' ? 'Creador' : 'Miembro'} · desde{' '}
+                    {new Date(h.joined_at).toLocaleDateString('es-CO')}
+                  </p>
+                </div>
+                {!active && (
+                  <button
+                    className="btn-ghost px-3 py-1.5 text-[11px]"
+                    disabled={busyHome === h.id || !online}
+                    onClick={() => void doSwitch(h.id)}
+                  >
+                    Cambiar
+                  </button>
+                )}
+                {h.role !== 'owner' && homes.length > 1 && (
+                  <button
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                    disabled={busyHome === h.id || !online}
+                    onClick={() => void doLeave(h.id)}
+                    aria-label={`Salir de ${h.name}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div className="mt-3 flex items-center gap-2">
           <div className="flex flex-1 items-center justify-center rounded-2xl bg-[var(--surface-2)] py-3 font-mono text-lg font-extrabold tracking-[0.3em] text-[var(--primary)]">
             {home?.invite_code}
           </div>
@@ -177,7 +330,7 @@ export function ProfilePage() {
           </button>
         </div>
         <p className="mt-2 text-xs text-muted">
-          Comparte este código con tu familia para que se unan al hogar.
+          Comparte este código con tu familia para que se unan al hogar. También puedes crear un hogar o unirte a otro con un código tocando el nombre del hogar arriba.
         </p>
       </div>
 
@@ -216,6 +369,8 @@ export function ProfilePage() {
       >
         <LogOut className="h-5 w-5" /> Cerrar sesión
       </button>
+
+      <AvatarCropModal open={!!cropSrc} src={cropSrc} onCancel={() => { URL.revokeObjectURL(cropSrc ?? ''); setCropSrc(null) }} onConfirm={(blob) => void saveAvatar(blob)} />
     </div>
   )
 }

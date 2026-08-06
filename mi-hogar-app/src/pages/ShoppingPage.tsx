@@ -5,13 +5,25 @@ import {
   PackagePlus,
   Plus,
   ShoppingBasket,
-  Trash2
+  Trash2,
+  Wallet
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/app'
 import { Modal } from '@/components/Modal'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import type { ShoppingItem } from '@/types'
+
+const moneyFmt = new Intl.NumberFormat('es-CO', {
+  style: 'currency',
+  currency: 'COP',
+  maximumFractionDigits: 2
+})
+
+function formatMoney(value: number): string {
+  return moneyFmt.format(value)
+}
 
 export function ShoppingPage() {
   const shoppingItems = useAppStore((s) => s.shoppingItems)
@@ -25,6 +37,7 @@ export function ShoppingPage() {
 
   const [newName, setNewName] = useState('')
   const [newQuantity, setNewQuantity] = useState(1)
+  const [newPrice, setNewPrice] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
 
@@ -32,13 +45,24 @@ export function ShoppingPage() {
   const done = useMemo(() => shoppingItems.filter((i) => i.checked), [shoppingItems])
   const progress = shoppingItems.length ? Math.round((done.length / shoppingItems.length) * 100) : 0
 
+  const total = useMemo(() => {
+    const t = pending.reduce(
+      (acc, i) => acc + (i.price != null ? i.price * i.quantity : 0),
+      0
+    )
+    return t > 0 ? t : null
+  }, [pending])
+
   const addItem = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newName.trim()) return
     try {
-      await addShoppingItem({ name: newName.trim(), quantity: newQuantity })
+      const parsed = parseFloat(newPrice.replace(',', '.'))
+      const price = !isNaN(parsed) && parsed > 0 ? parsed : null
+      await addShoppingItem({ name: newName.trim(), quantity: newQuantity, price })
       setNewName('')
       setNewQuantity(1)
+      setNewPrice('')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error')
     }
@@ -78,31 +102,53 @@ export function ShoppingPage() {
           <p className="text-xs text-muted">
             {pending.length} por comprar · {done.length} comprados
           </p>
+          {total != null && (
+            <p className="mt-0.5 flex items-center gap-1 text-[11px] font-bold text-[var(--primary)]">
+              <Wallet className="h-3.5 w-3.5" /> Total estimado: {formatMoney(total)}
+            </p>
+          )}
           <p className="mt-0.5 text-[11px] font-medium text-muted">
             Marca ✓ y el inventario se actualiza solo
           </p>
         </div>
       </div>
 
-      <form onSubmit={addItem} className="flex gap-2">
-        <input
-          className="input flex-1"
-          placeholder="Agregar artículo (ej. arroz)"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          disabled={!online}
-        />
-        <input
-          type="number"
-          className="input w-16 text-center font-bold"
-          value={newQuantity}
-          onChange={(e) => setNewQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-          inputMode="numeric"
-          aria-label="Cantidad"
-        />
-        <button type="submit" className="btn-primary h-[52px] w-[52px] shrink-0" disabled={!online || !newName.trim()}>
-          <Plus className="h-5 w-5" />
-        </button>
+      <form onSubmit={addItem} className="card space-y-2 p-3">
+        <div className="flex gap-2">
+          <input
+            className="input flex-1 !py-2.5 text-sm"
+            placeholder="Agregar artículo (ej. arroz)"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            disabled={!online}
+          />
+          <button type="submit" className="btn-primary h-[46px] w-[46px] shrink-0" disabled={!online || !newName.trim()}>
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold text-muted">Cantidad</label>
+            <input
+              type="number"
+              className="input !py-2 text-center font-bold"
+              value={newQuantity}
+              onChange={(e) => setNewQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              inputMode="numeric"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold text-muted">Precio unitario ($, opcional)</label>
+            <input
+              type="number"
+              className="input !py-2 text-center"
+              placeholder="0"
+              value={newPrice}
+              onChange={(e) => setNewPrice(e.target.value)}
+              inputMode="decimal"
+            />
+          </div>
+        </div>
       </form>
 
       <button
@@ -141,22 +187,27 @@ export function ShoppingPage() {
                   {item.quantity} {item.unit}
                   {item.note && ` · ${item.note}`}
                 </p>
+                <div className="mt-0.5">
+                  <PriceEdit item={item} />
+                </div>
               </div>
-              <button
-                onClick={() => void toggleChecked(item.id, true)}
-                disabled={!online}
-                className="btn-accent px-3 py-1.5 text-xs"
-              >
-                Comprar
-              </button>
-              <button
-                onClick={() => void deleteShoppingItem(item.id)}
-                disabled={!online}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
-                aria-label="Eliminar"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              <div className="flex flex-col items-end gap-1.5">
+                <button
+                  onClick={() => void toggleChecked(item.id, true)}
+                  disabled={!online}
+                  className="btn-accent px-3 py-1.5 text-xs"
+                >
+                  Comprar
+                </button>
+                <button
+                  onClick={() => void deleteShoppingItem(item.id)}
+                  disabled={!online}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                  aria-label="Eliminar"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           )
         })}
@@ -233,5 +284,56 @@ export function ShoppingPage() {
         </button>
       </Modal>
     </div>
+  )
+}
+
+function PriceEdit({ item }: { item: ShoppingItem }) {
+  const updateShoppingItem = useAppStore((s) => s.updateShoppingItem)
+  const online = useAppStore((s) => s.online)
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(item.price?.toString() ?? '')
+
+  const save = async () => {
+    setEditing(false)
+    const parsed = parseFloat(value.replace(',', '.'))
+    const price = !isNaN(parsed) && parsed > 0 ? parsed : null
+    if (price === item.price) return
+    try {
+      await updateShoppingItem(item.id, { price })
+    } catch {
+      toast.error('No se pudo guardar el precio')
+    }
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="number"
+        inputMode="decimal"
+        className="input !w-32 !px-3 !py-1 text-xs"
+        placeholder="Precio"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => void save()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save()
+          if (e.key === 'Escape') setEditing(false)
+        }}
+      />
+    )
+  }
+
+  return (
+    <button
+      className="rounded-lg bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-bold text-muted transition-colors hover:text-[var(--primary)]"
+      disabled={!online}
+      onClick={() => {
+        setValue(item.price?.toString() ?? '')
+        setEditing(true)
+      }}
+    >
+      {item.price != null ? formatMoney(item.price) : '＋ precio'}
+    </button>
   )
 }

@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { sanitizeTheme, applyTheme } from '@/lib/theme'
+import { sanitizeTheme, applyTheme, applyBackground } from '@/lib/theme'
 import type {
   Category,
   ConsumeResult,
   Home,
   HomeMember,
   InventoryEvent,
+  MyHome,
   Product,
   Profile,
   ShoppingItem,
@@ -18,6 +19,7 @@ interface AppState {
   user: User | null
   profile: Profile | null
   home: Home | null
+  homes: MyHome[]
   members: HomeMember[]
   products: Product[]
   shoppingItems: ShoppingItem[]
@@ -45,6 +47,10 @@ interface AppState {
 
   setHome: (home: Home) => void
   setOnline: (online: boolean) => void
+
+  loadHomes: () => Promise<void>
+  switchHome: (homeId: string) => Promise<void>
+  leaveHome: (homeId: string) => Promise<void>
 
   createHome: (name: string) => Promise<void>
   joinHome: (code: string) => Promise<void>
@@ -77,6 +83,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   user: null,
   profile: null,
   home: null,
+  homes: [],
   members: [],
   products: [],
   shoppingItems: [],
@@ -122,6 +129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     channels = []
     set({
       home: null,
+      homes: [],
       members: [],
       products: [],
       shoppingItems: [],
@@ -147,6 +155,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (data) {
       const profile = { ...data, theme: sanitizeTheme(data.theme) }
       applyTheme(profile.theme)
+      applyBackground(profile.background_url ?? null)
       set({ profile })
       return profile
     }
@@ -160,6 +169,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (patch.theme) {
       next.theme = sanitizeTheme(patch.theme)
       applyTheme(next.theme)
+    }
+    if (patch.background_url !== undefined) {
+      applyBackground(patch.background_url ?? null)
     }
     set({ profile: next })
     const { error } = await supabase
@@ -277,52 +289,52 @@ export const useAppStore = create<AppState>((set, get) => ({
     })
   },
 
+  loadHomes: async () => {
+    const { data, error } = await supabase.rpc('list_my_homes')
+    if (!error && data) set({ homes: data as MyHome[] })
+  },
+
   loadAll: async () => {
-    const { user } = get()
+    const { user, profile } = get()
     if (!user) return
     await get().loadCategories()
     await get().loadUnits()
+    await get().loadHomes()
 
-    const { data: membership } = await supabase
-      .from('home_members')
-      .select('home_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .maybeSingle()
+    const { homes } = get()
+    const active =
+      homes.find((h) => h.id === profile?.active_home_id) ?? homes[0]
 
-    if (membership?.home_id) {
-      const { data: home } = await supabase
-        .from('homes')
-        .select('*')
-        .eq('id', membership.home_id)
-        .single()
-      if (home) {
-        set({ home })
-        await get().loadMembers()
-        await get().loadProducts()
-        await get().loadShopping()
-        await get().loadEvents()
-        get().subscribeRealtime(home.id)
-        set({ loaded: true })
-        return
-      }
-    }
-
-    const { data: owned } = await supabase
-      .from('homes')
-      .select('*')
-      .eq('owner_id', user.id)
-      .limit(1)
-      .maybeSingle()
-    if (owned) {
-      set({ home: owned })
+    if (active) {
+      set({ home: active })
       await get().loadMembers()
       await get().loadProducts()
       await get().loadShopping()
       await get().loadEvents()
-      get().subscribeRealtime(owned.id)
+      get().subscribeRealtime(active.id)
       set({ loaded: true })
     }
+  },
+
+  switchHome: async (homeId) => {
+    const target = get().homes.find((h) => h.id === homeId)
+    if (!target) throw new Error('No eres miembro de este hogar')
+    const { error } = await supabase.rpc('set_active_home', { p_home_id: homeId })
+    if (error) throw error
+    set({ home: target })
+    const profile = get().profile
+    if (profile) set({ profile: { ...profile, active_home_id: homeId } })
+    await get().loadMembers()
+    await get().loadProducts()
+    await get().loadShopping()
+    await get().loadEvents()
+    get().subscribeRealtime(homeId)
+  },
+
+  leaveHome: async (homeId) => {
+    const { error } = await supabase.rpc('leave_home', { p_home_id: homeId })
+    if (error) throw error
+    await get().loadAll()
   },
 
   setHome: (home) => set({ home }),

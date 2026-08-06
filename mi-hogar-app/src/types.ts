@@ -6,6 +6,8 @@ export interface Profile {
   theme: Theme
   is_admin: boolean
   status: 'pending' | 'approved' | 'rejected'
+  active_home_id: string | null
+  background_url: string | null
   created_at: string
   updated_at: string
 }
@@ -22,6 +24,11 @@ export interface Home {
   invite_code: string
   owner_id: string
   created_at: string
+}
+
+export interface MyHome extends Home {
+  role: string
+  joined_at: string
 }
 
 export interface HomeMember {
@@ -72,6 +79,7 @@ export interface ShoppingItem {
   quantity: number
   unit: string
   note: string | null
+  price: number | null
   product_id: string | null
   checked: boolean
   added_by: string | null

@@ -105,3 +105,14 @@ export function applyTheme(theme: Theme): void {
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.setAttribute('content', theme.primary)
 }
+
+export function applyBackground(url: string | null): void {
+  const root = document.documentElement
+  if (url) {
+    root.classList.add('has-app-bg')
+    root.style.setProperty('--app-bg-image', `url("${url}")`)
+  } else {
+    root.classList.remove('has-app-bg')
+    root.style.removeProperty('--app-bg-image')
+  }
+}
