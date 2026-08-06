@@ -21,7 +21,7 @@ try {
   cpSync(join(process.cwd(), 'supabase', 'functions'), join(work, 'supabase', 'functions'), { recursive: true })
   console.log(`Desplegando funciones en proyecto ${ref}...`)
   execSync(
-    'supabase functions deploy suggest-meals ask-chef scan-receipt --project-ref ' + ref,
+    'supabase functions deploy suggest-meals voice-consume scan-receipt --project-ref ' + ref,
     { cwd: work, stdio: 'inherit', env: process.env }
   )
 } finally {

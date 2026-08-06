@@ -1,18 +1,21 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
+  Check,
   Copy,
   Home,
   LogOut,
   Moon,
   Palette,
+  ShieldCheck,
   Sun,
-  Users
+  Users,
+  X
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/app'
 import { Avatar } from '@/components/Avatar'
 import { getPalettes, isValidHex } from '@/lib/theme'
-import type { Theme } from '@/types'
+import type { AdminUser, Theme } from '@/types'
 import { supabase } from '@/lib/supabase'
 
 const SWATCHES = [
@@ -203,6 +206,8 @@ export function ProfilePage() {
         </div>
       </div>
 
+      {profile?.is_admin && <AdminSection />}
+
       <button
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500/10 py-3.5 font-bold text-red-500 transition-all active:scale-[0.98]"
         onClick={() => {
@@ -211,6 +216,114 @@ export function ProfilePage() {
       >
         <LogOut className="h-5 w-5" /> Cerrar sesión
       </button>
+    </div>
+  )
+}
+
+function AdminSection() {
+  const user = useAppStore((s) => s.user)
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const load = async () => {
+    setLoading(true)
+    const { data, error } = await supabase.rpc('admin_list_users')
+    if (!error && data) setUsers((data as AdminUser[]).filter((u) => u.status !== 'rejected'))
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const pending = users.filter((u) => u.status === 'pending')
+
+  const run = async (id: string, fn: () => PromiseLike<unknown>, okMsg: string) => {
+    setBusyId(id)
+    try {
+      await fn()
+      toast.success(okMsg)
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div className="card p-4">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-extrabold">
+        <ShieldCheck className="h-4 w-4 text-[var(--primary)]" /> Administración
+      </h3>
+
+      {pending.length > 0 && (
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-semibold text-muted">
+            Solicitudes de registro pendientes ({pending.length})
+          </p>
+          <div className="space-y-2">
+            {pending.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 rounded-2xl bg-[var(--surface-2)] p-3">
+                <Avatar name={u.full_name} size={36} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{u.full_name || 'Sin nombre'}</p>
+                  <p className="truncate text-[10px] text-muted">{u.email}</p>
+                </div>
+                <div className="flex shrink-0 gap-1.5">
+                  <button
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-500/10 text-green-600 disabled:opacity-50"
+                    disabled={busyId === u.id}
+                    onClick={() => void run(u.id, () => supabase.rpc('approve_user', { p_user_id: u.id }), 'Usuario aprobado')}
+                    aria-label="Aprobar"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 text-red-500 disabled:opacity-50"
+                    disabled={busyId === u.id}
+                    onClick={() => void run(u.id, () => supabase.rpc('reject_user', { p_user_id: u.id }), 'Usuario rechazado')}
+                    aria-label="Rechazar"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {pending.length === 0 && !loading && (
+        <p className="mb-3 text-xs text-muted">No hay solicitudes pendientes de aprobación.</p>
+      )}
+
+      <p className="mb-2 text-xs font-semibold text-muted">Usuarios aprobados · rol administrador</p>
+      <div className="space-y-2">
+        {users
+          .filter((u) => u.status === 'approved')
+          .map((u) => (
+            <div key={u.id} className="flex items-center gap-3">
+              <Avatar name={u.full_name} url={u.avatar_url ?? null} color={u.profile_color ?? undefined} size={34} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{u.full_name || u.email}</p>
+                <p className="truncate text-[10px] text-muted">{u.email}</p>
+              </div>
+              <button
+                className={`rounded-full px-3 py-1 text-[11px] font-bold transition-colors disabled:opacity-50 ${
+                  u.is_admin
+                    ? 'bg-[var(--primary-soft)] text-[var(--primary)]'
+                    : 'bg-[var(--surface-2)] text-muted'
+                }`}
+                disabled={busyId === u.id || u.id === user?.id}
+                onClick={() => void run(u.id, () => supabase.rpc('set_admin', { p_user_id: u.id, p_admin: !u.is_admin }), u.is_admin ? 'Rol de admin retirado' : 'Ahora es administrador')}
+              >
+                {u.is_admin ? 'Admin' : 'Asignar admin'}
+              </button>
+            </div>
+          ))}
+      </div>
     </div>
   )
 }

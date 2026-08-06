@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { MealSuggestion, ReceiptItem, RecipeAnswer } from '@/types'
+import type { ConsumeDeduction, MealSuggestion, ReceiptItem } from '@/types'
 
 interface InvokeOptions {
   signal?: AbortSignal
@@ -30,12 +30,13 @@ export function suggestMeals(req: MealRequest, opts?: InvokeOptions) {
   return invoke<{ suggestions: MealSuggestion[] }>('suggest-meals', req, opts)
 }
 
-export function askChef(
-  question: string,
-  inventory: { name: string; quantity: number; unit: string }[],
-  opts?: InvokeOptions
-) {
-  return invoke<{ answers: RecipeAnswer[] }>('ask-chef', { question, inventory }, opts)
+export interface ConsumeRequest {
+  text: string
+  inventory: { id: string; name: string; quantity: number; unit: string }[]
+}
+
+export function interpretConsumption(req: ConsumeRequest, opts?: InvokeOptions) {
+  return invoke<{ summary: string; deductions: ConsumeDeduction[] }>('voice-consume', req, opts)
 }
 
 export function scanReceipt(file: File, opts?: InvokeOptions) {

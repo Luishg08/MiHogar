@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { sanitizeTheme, applyTheme } from '@/lib/theme'
 import type {
   Category,
+  ConsumeResult,
   Home,
   HomeMember,
   InventoryEvent,
@@ -52,6 +53,7 @@ interface AppState {
   updateProduct: (id: string, patch: Partial<Product>) => Promise<void>
   deleteProduct: (id: string) => Promise<void>
   adjustQuantity: (id: string, delta: number) => Promise<void>
+  consumeItems: (items: { product_id: string; quantity: number }[]) => Promise<ConsumeResult[]>
 
   addShoppingItem: (input: Partial<ShoppingItem> & { name: string }) => Promise<void>
   deleteShoppingItem: (id: string) => Promise<void>
@@ -427,6 +429,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { error } = await supabase.rpc('adjust_quantity', { p_product_id: id, p_delta: delta })
     if (error) throw error
     await get().loadProducts()
+  },
+
+  consumeItems: async (items) => {
+    const { error, data } = await supabase.rpc('consume_items', { p_items: items })
+    if (error) throw error
+    await get().loadProducts()
+    await get().loadEvents()
+    return (data ?? []) as ConsumeResult[]
   },
 
   addShoppingItem: async (input) => {

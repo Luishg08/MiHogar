@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { History, ShoppingCart, Trash2, PenLine, PlusCircle, ListPlus } from 'lucide-react'
+import { History, MinusCircle, ShoppingCart, Trash2, PenLine, PlusCircle, ListPlus } from 'lucide-react'
 import { useAppStore } from '@/store/app'
 import { Avatar } from '@/components/Avatar'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -10,6 +10,7 @@ const actionMeta: Record<string, { icon: React.ReactNode; color: string }> = {
   actualizado: { icon: <PenLine className="h-4 w-4" />, color: '#2563eb' },
   eliminado: { icon: <Trash2 className="h-4 w-4" />, color: '#dc2626' },
   comprado: { icon: <ShoppingCart className="h-4 w-4" />, color: '#d97706' },
+  consumido: { icon: <MinusCircle className="h-4 w-4" />, color: '#dc2626' },
   'agregado a la lista': { icon: <ListPlus className="h-4 w-4" />, color: '#7c3aed' },
   'eliminado de la lista': { icon: <Trash2 className="h-4 w-4" />, color: '#9ca3af' }
 }

@@ -1,23 +1,26 @@
 import { useMemo, useRef, useState } from 'react'
 import {
+  AudioLines,
   Bot,
   Camera,
-  ChefHat,
+  Check,
   FileText,
   Loader2,
+  Mic,
   Plus,
   ScanLine,
   Send,
   Sparkles,
+  Square,
   Utensils,
   Wand2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/app'
-import { askChef, scanReceipt, suggestMeals } from '@/lib/gemini'
-import type { MealSuggestion, ReceiptItem } from '@/types'
+import { interpretConsumption, scanReceipt, suggestMeals } from '@/lib/gemini'
+import type { ConsumeDeduction, MealSuggestion, ReceiptItem } from '@/types'
 
-type Tab = 'meals' | 'scan' | 'chef'
+type Tab = 'meals' | 'scan' | 'voice'
 
 export function AssistantPage() {
   const [tab, setTab] = useState<Tab>('meals')
@@ -37,12 +40,12 @@ export function AssistantPage() {
       <div className="grid grid-cols-3 rounded-2xl bg-[var(--surface-2)] p-1">
         <TabButton active={tab === 'meals'} onClick={() => setTab('meals')} icon={<Utensils className="h-4 w-4" />} label="Comidas" />
         <TabButton active={tab === 'scan'} onClick={() => setTab('scan')} icon={<ScanLine className="h-4 w-4" />} label="Factura" />
-        <TabButton active={tab === 'chef'} onClick={() => setTab('chef')} icon={<ChefHat className="h-4 w-4" />} label="Chef" />
+        <TabButton active={tab === 'voice'} onClick={() => setTab('voice')} icon={<Mic className="h-4 w-4" />} label="Voz" />
       </div>
 
       {tab === 'meals' && <MealSuggestions />}
       {tab === 'scan' && <ReceiptScanner />}
-      {tab === 'chef' && <ChefChat />}
+      {tab === 'voice' && <VoiceNote />}
     </div>
   )
 }
@@ -313,99 +316,256 @@ function ReceiptScanner() {
   )
 }
 
-function ChefChat() {
+function VoiceNote() {
   const products = useAppStore((s) => s.products)
   const online = useAppStore((s) => s.online)
-  const [question, setQuestion] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [answer, setAnswer] = useState<string | null>(null)
+  const consumeItems = useAppStore((s) => s.consumeItems)
+  const [listening, setListening] = useState(false)
+  const [transcript, setTranscript] = useState('')
+  const [text, setText] = useState('')
+  const [interpreting, setInterpreting] = useState(false)
+  const [result, setResult] = useState<{ summary: string; deductions: ConsumeDeduction[] } | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [applying, setApplying] = useState(false)
+  const recRef = useRef<{ stop: () => void } | null>(null)
+  const finalRef = useRef('')
   const abortRef = useRef<AbortController | null>(null)
 
-  const inventory = useMemo(
-    () => products.map((p) => ({ name: p.name, quantity: p.quantity, unit: p.unit })).slice(0, 60),
-    [products]
-  )
+  const speechSupported =
+    typeof window !== 'undefined' &&
+    !!((window as unknown as Record<string, unknown>).SpeechRecognition ||
+      (window as unknown as Record<string, unknown>).webkitSpeechRecognition)
 
-  const ask = async (q?: string) => {
-    const query = (q ?? question).trim()
-    if (!query) return
-    setLoading(true)
-    setQuestion('')
-    setAnswer(null)
+  interface SpeechRecognitionEvent {
+    resultIndex: number
+    results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>
+  }
+
+  interface SpeechRecognitionLike {
+    lang: string
+    interimResults: boolean
+    continuous: boolean
+    maxAlternatives: number
+    onresult: ((e: SpeechRecognitionEvent) => void) | null
+    onend: (() => void) | null
+    onerror: (() => void) | null
+    start: () => void
+    stop: () => void
+  }
+
+  const startListening = () => {
+    const w = window as unknown as {
+      SpeechRecognition?: new () => SpeechRecognitionLike
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike
+    }
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition
+    if (!Ctor) {
+      toast.error('Tu navegador no soporta voz. Escribe la nota abajo.')
+      return
+    }
+    const rec = new Ctor()
+    rec.lang = 'es-CO'
+    rec.interimResults = true
+    rec.continuous = false
+    rec.maxAlternatives = 1
+    rec.onresult = (e) => {
+      let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i]
+        if (r.isFinal) finalRef.current += r[0].transcript + ' '
+        else interim += r[0].transcript
+      }
+      setTranscript((finalRef.current + interim).trim())
+    }
+    rec.onend = () => {
+      setListening(false)
+      if (!finalRef.current.trim()) toast.info('No capté nada. Inténtalo de nuevo.')
+    }
+    rec.onerror = () => {
+      setListening(false)
+      toast.error('No se pudo reconocer la voz')
+    }
+    finalRef.current = ''
+    setTranscript('')
+    setResult(null)
+    recRef.current = rec
+    rec.start()
+    setListening(true)
+  }
+
+  const stopListening = () => {
+    recRef.current?.stop()
+    setListening(false)
+  }
+
+  const interpret = async (raw?: string) => {
+    const q = (raw ?? text ?? transcript).trim()
+    if (!q) {
+      toast.error('Escribe o dicta qué gastaste')
+      return
+    }
+    if (!products.length) {
+      toast.error('Tu inventario está vacío. Agrega productos primero.')
+      return
+    }
+    setInterpreting(true)
+    setResult(null)
     abortRef.current = new AbortController()
     try {
-      const res = await askChef(query, inventory, { signal: abortRef.current.signal })
-      const answers = res.answers ?? []
-      setAnswer(
-        answers
-          .map(
-            (a) =>
-              `### ${a.title}\n\n${a.recipe}\n\n${a.suggestions?.length ? '**Ideas extra:** ' + a.suggestions.join(' · ') : ''}`
-          )
-          .join('\n\n---\n\n')
-      )
+      const inventory = products
+        .map((p) => ({ id: p.id, name: p.name, quantity: p.quantity, unit: p.unit }))
+        .slice(0, 60)
+      const res = await interpretConsumption({ text: q, inventory }, { signal: abortRef.current.signal })
+      const valid = (res.deductions ?? []).filter((d) => products.some((p) => p.id === d.product_id))
+      setResult({ summary: res.summary ?? '', deductions: valid })
+      setSelected(new Set(valid.map((d) => d.product_id)))
+      if (!valid.length) toast.info(res.summary || 'No pude identificar productos para descontar')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error de la IA')
     } finally {
-      setLoading(false)
+      setInterpreting(false)
     }
   }
 
-  const suggestions = [
-    '¿Qué hago con los huevos y la harina que tengo?',
-    'Prepara una cena rápida con lo que hay en la nevera',
-    'Tengo pollo y arroz, ¿qué almuerzos me sugieres?',
-    '¿Cómo aprovechar los productos por vencer?'
-  ]
+  const apply = async () => {
+    if (!result) return
+    const items = result.deductions
+      .filter((d) => selected.has(d.product_id))
+      .map((d) => ({ product_id: d.product_id, quantity: d.quantity }))
+    if (!items.length) {
+      toast.error('Selecciona al menos un producto')
+      return
+    }
+    setApplying(true)
+    try {
+      const applied = await consumeItems(items)
+      toast.success(`Se descontaron ${applied.length} producto${applied.length === 1 ? '' : 's'} del inventario`)
+      setResult(null)
+      setTranscript('')
+      setText('')
+      finalRef.current = ''
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al aplicar')
+    } finally {
+      setApplying(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {suggestions.map((s) => (
-          <button key={s} onClick={() => void ask(s)} disabled={!online} className="chip text-left">
-            {s}
+      <div className="card flex flex-col items-center gap-4 p-6 text-center">
+        <p className="text-sm font-bold">¿Qué gastaste hoy?</p>
+        <p className="-mt-2 px-6 text-xs text-muted">
+          Di por ejemplo: <em>"Gasté 2 litros de leche y media libra de arroz"</em>. La IA lo descuenta del
+          inventario.
+        </p>
+
+        {speechSupported ? (
+          <button
+            onClick={listening ? stopListening : startListening}
+            disabled={!online}
+            className={`flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-all active:scale-95 disabled:opacity-50 ${
+              listening
+                ? 'bg-red-500 text-white animate-pulse'
+                : 'bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-white'
+            }`}
+            aria-label={listening ? 'Detener grabación' : 'Grabar nota de voz'}
+          >
+            {listening ? <Square className="h-8 w-8" /> : <Mic className="h-8 w-8" />}
           </button>
-        ))}
+        ) : null}
+
+        {listening && (
+          <div className="flex items-center gap-2 text-xs font-semibold text-red-500">
+            <AudioLines className="h-4 w-4 animate-pulse" /> Escuchando... toca el botón para terminar
+          </div>
+        )}
+
+        {transcript && (
+          <div className="w-full rounded-2xl bg-[var(--surface-2)] p-3 text-sm italic leading-relaxed">
+            “{transcript}”
+          </div>
+        )}
+
+        <div className="w-full">
+          <textarea
+            className="input min-h-[64px] resize-none"
+            placeholder={speechSupported ? 'O escribe la nota aquí...' : 'Describe qué gastaste (ej. "2 litros de leche y una bolsa de pan")...'}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            disabled={interpreting || !online}
+          />
+        </div>
+
+        <button
+          className="btn-primary w-full py-3.5"
+          onClick={() => void interpret((text || transcript) || undefined)}
+          disabled={interpreting || (!text.trim() && !transcript) || !online}
+        >
+          {interpreting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+          {interpreting ? 'Interpretando...' : 'Interpretar consumo'}
+        </button>
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          void ask()
-        }}
-        className="flex gap-2"
-      >
-        <input
-          className="input flex-1"
-          placeholder="Pregunta qué cocinar con tus productos..."
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          disabled={loading || !online}
-        />
-        <button type="submit" className="btn-primary h-[52px] w-[52px] shrink-0" disabled={loading || !question.trim() || !online}>
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-        </button>
-      </form>
-
-      {loading && (
-        <div className="card flex items-center gap-3 p-4">
-          <Loader2 className="h-5 w-5 animate-spin text-[var(--primary)]" />
-          <p className="text-sm font-semibold text-muted">Consultando al chef con tu inventario...</p>
+      {result && (
+        <div className="card animate-fade-in p-4">
+          {result.summary && <p className="mb-3 text-xs leading-relaxed text-muted">{result.summary}</p>}
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-bold">Se descontará</p>
+            <button
+              className="text-xs font-semibold text-[var(--primary)]"
+              onClick={() =>
+                setSelected(
+                  selected.size === result.deductions.length
+                    ? new Set()
+                    : new Set(result.deductions.map((d) => d.product_id))
+                )
+              }
+            >
+              {selected.size === result.deductions.length ? 'Quitar todos' : 'Seleccionar todos'}
+            </button>
+          </div>
+          <div className="space-y-1">
+            {result.deductions.map((d) => (
+              <label key={d.product_id} className="flex cursor-pointer items-center gap-3 rounded-2xl p-2 hover:bg-[var(--surface-2)]">
+                <input
+                  type="checkbox"
+                  className="h-5 w-5 accent-[var(--primary)]"
+                  checked={selected.has(d.product_id)}
+                  onChange={() =>
+                    setSelected((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(d.product_id)) next.delete(d.product_id)
+                      else next.add(d.product_id)
+                      return next
+                    })
+                  }
+                />
+                <span className="text-sm font-semibold capitalize">{d.name.toLowerCase()}</span>
+                <span className="ml-auto text-xs text-muted">
+                  −{d.quantity} {d.unit}
+                </span>
+              </label>
+            ))}
+          </div>
+          {result.deductions.length === 0 && (
+            <div className="flex items-center gap-2 py-4 text-center text-xs text-muted">
+              <Wand2 className="h-5 w-5 shrink-0" /> No se encontraron coincidencias con tu inventario.
+            </div>
+          )}
+          <button className="btn-primary mt-3 w-full py-3" disabled={!selected.size || applying || !online} onClick={() => void apply()}>
+            {applying ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
+            Aplicar al inventario
+          </button>
         </div>
       )}
 
-      {answer && (
-        <div className="card animate-fade-in whitespace-pre-wrap p-4 text-sm leading-relaxed [&_h3]:mb-1 [&_h3]:font-extrabold [&_h3]:text-[var(--primary)]">
-          {answer}
-        </div>
-      )}
-
-      {!loading && !answer && (
-        <div className="card flex flex-col items-center gap-2 py-10 text-center">
-          <ChefHat className="h-8 w-8 text-muted" />
-          <p className="text-sm font-bold">Pregúntale al chef</p>
+      {!result && !listening && (
+        <div className="card flex flex-col items-center gap-2 py-8 text-center">
+          <Send className="h-8 w-8 text-muted" />
+          <p className="text-sm font-bold">Descuentos con tu voz</p>
           <p className="px-6 text-xs text-muted">
-            Responde con recetas usando únicamente los productos que tienes en casa.
+            La IA interpreta tu nota, te muestra qué va a descontar y tú confirmas antes de aplicar.
           </p>
         </div>
       )}

@@ -12,10 +12,12 @@ import { ActivityPage } from '@/pages/ActivityPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { ProductDetailPage } from '@/pages/ProductDetailPage'
 import { LoadingScreen } from '@/components/LoadingScreen'
+import { ApprovalStatusScreen } from '@/pages/ApprovalStatusScreen'
 
 export default function App() {
   const ready = useAppStore((s) => s.ready)
   const user = useAppStore((s) => s.user)
+  const profile = useAppStore((s) => s.profile)
   const home = useAppStore((s) => s.home)
   const online = useAppStore((s) => s.online)
   const bootstrap = useAppStore((s) => s.bootstrap)
@@ -37,6 +39,13 @@ export default function App() {
   }, [setOnline])
 
   if (!ready) return <LoadingScreen label="Cargando..." />
+
+  if (user && profile && profile.status === 'pending') {
+    return <ApprovalStatusScreen />
+  }
+  if (user && profile && profile.status === 'rejected') {
+    return <ApprovalStatusScreen />
+  }
 
   return (
     <BrowserRouter>

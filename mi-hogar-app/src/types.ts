@@ -4,6 +4,8 @@ export interface Profile {
   avatar_url: string | null
   profile_color: string
   theme: Theme
+  is_admin: boolean
+  status: 'pending' | 'approved' | 'rejected'
   created_at: string
   updated_at: string
 }
@@ -84,6 +86,7 @@ export type InventoryAction =
   | 'actualizado'
   | 'eliminado'
   | 'comprado'
+  | 'consumido'
   | 'agregado a la lista'
   | 'eliminado de la lista'
 
@@ -112,6 +115,31 @@ export interface RecipeAnswer {
   title: string
   recipe: string
   suggestions: string[]
+}
+
+export interface ConsumeDeduction {
+  product_id: string
+  name: string
+  quantity: number
+  unit: string
+}
+
+export interface ConsumeResult {
+  product_id: string
+  name: string
+  quantity: number
+  new_quantity: number
+}
+
+export interface AdminUser {
+  id: string
+  email: string
+  full_name: string
+  status: 'pending' | 'approved' | 'rejected'
+  is_admin: boolean
+  avatar_url: string | null
+  profile_color: string
+  created_at: string
 }
 
 export interface ReceiptItem {

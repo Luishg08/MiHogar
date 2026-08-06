@@ -94,12 +94,16 @@ body {
     background-color: var(--primary);
     color: var(--on-primary);
   }
-  .safe-bottom {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
-  }
-  .safe-top {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
+}
+
+/* Safe area: fuera de @layer para que las utilidades de Tailwind (py-3, pb-4)
+   no anulen el padding del notch/home indicator de iOS. */
+.safe-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+}
+
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 11rem);
 }
 
 @layer utilities {

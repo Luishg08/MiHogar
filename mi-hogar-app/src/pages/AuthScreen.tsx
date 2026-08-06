@@ -23,7 +23,7 @@ export function AuthScreen() {
         if (error) throw error
         if (data.session) {
           await supabase.auth.updateUser({ data: { full_name: name } })
-          toast.success('¡Bienvenido a Mi Hogar!')
+          toast.success('Cuenta creada. Espera la aprobación de un administrador.')
         } else {
           toast.success('Revisa tu correo para confirmar la cuenta')
         }
