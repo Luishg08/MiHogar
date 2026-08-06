@@ -200,21 +200,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadMembers: async () => {
     const { home } = get()
     if (!home) return
-    const { data, error } = await supabase
-      .from('home_members')
-      .select('home_id, user_id, role, joined_at')
-      .eq('home_id', home.id)
-    if (error) return
-    const ids = data.map((m) => m.user_id)
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
-    const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]))
+    const { data, error } = await supabase.rpc('list_home_members', { p_home_id: home.id })
+    if (error) {
+      console.error('loadMembers', error)
+      return
+    }
     set({
-      members: data.map((m) => ({
-        ...m,
-        profile: m.user_id in profileMap ? profileMap.get(m.user_id) : undefined
+      members: (data ?? []).map((m: { home_id: string; user_id: string; role: string; joined_at: string; full_name: string; avatar_url: string | null; profile_color: string }) => ({
+        home_id: m.home_id,
+        user_id: m.user_id,
+        role: m.role,
+        joined_at: m.joined_at,
+        profile: {
+          id: m.user_id,
+          full_name: m.full_name,
+          avatar_url: m.avatar_url,
+          profile_color: m.profile_color
+        } as Profile
       }))
     })
   },

@@ -70,7 +70,7 @@ export function ProfilePage() {
 
   const saveAvatar = async (blob: Blob) => {
     if (!user) return
-    const path = `avatar-${user.id}.jpg`
+    const path = `avatar-${user.id}-${Date.now()}.jpg`
     const { error } = await supabase.storage.from('product-photos').upload(path, blob, { upsert: true })
     URL.revokeObjectURL(cropSrc ?? '')
     setCropSrc(null)
@@ -85,7 +85,7 @@ export function ProfilePage() {
 
   const uploadBackground = async (file: File) => {
     if (!user) return
-    const path = `backgrounds/${user.id}.${file.name.split('.').pop() ?? 'jpg'}`
+    const path = `backgrounds/${user.id}-${Date.now()}.${file.name.split('.').pop() ?? 'jpg'}`
     const { error } = await supabase.storage.from('product-photos').upload(path, file, { upsert: true })
     if (error) {
       toast.error(error.message)
@@ -115,7 +115,12 @@ export function ProfilePage() {
   }
 
   const doLeave = async (id: string) => {
-    if (!confirm('¿Salirte de este hogar?')) return
+    const h = homes.find((x) => x.id === id)
+    const isOwner = h?.owner_id === user?.id
+    const msg = isOwner
+      ? 'Eres el creador de este hogar. Al salir se transferirá el hogar a otro miembro (o se eliminará si estás solo). ¿Continuar?'
+      : '¿Salirte de este hogar?'
+    if (!confirm(msg)) return
     setBusyHome(id)
     try {
       await leaveHome(id)
@@ -307,7 +312,7 @@ export function ProfilePage() {
                     Cambiar
                   </button>
                 )}
-                {h.role !== 'owner' && homes.length > 1 && (
+                {homes.length > 1 && (
                   <button
                     className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
                     disabled={busyHome === h.id || !online}

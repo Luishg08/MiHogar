@@ -126,8 +126,8 @@ export function AppShell() {
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md">
         <div
-          className="mx-4 mb-3 flex items-center justify-around rounded-3xl border border-[var(--border)] bg-[var(--surface)]/95 px-1 py-2 shadow-lg backdrop-blur"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}
+          className="mx-4 mb-2 flex items-center justify-around rounded-3xl border border-[var(--border)] bg-[var(--surface)] px-1 py-1.5 shadow-lg"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 4px)' }}
         >
           {tabs.map(({ to, label, icon: Icon, end }) => (
             <NavLink
