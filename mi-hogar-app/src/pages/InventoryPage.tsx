@@ -142,7 +142,7 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
 function EmptyInventory() {
   return (
     <div className="card flex flex-col items-center justify-center gap-3 py-14 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-soft text-3xl">🏠</div>
+      <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-soft text-4xl">🏠</div>
       <div>
         <p className="font-bold">Aún no hay productos</p>
         <p className="mt-1 text-sm text-muted">

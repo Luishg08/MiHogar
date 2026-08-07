@@ -86,7 +86,7 @@ body {
     box-shadow: 0 0 0 3px var(--primary-soft);
   }
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold;
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold;
     background-color: var(--surface-2);
     color: var(--text-muted);
   }

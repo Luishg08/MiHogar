@@ -181,7 +181,7 @@ export function ShoppingPage() {
               </button>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold">
-                  {product?.emoji ?? '🛒'} {item.name}
+                  <span className="text-lg">{product?.emoji ?? '🛒'}</span> {item.name}
                 </p>
                 <p className="text-xs text-muted">
                   {item.quantity} {item.unit}
@@ -264,7 +264,7 @@ export function ShoppingPage() {
                   )
                 }
               />
-              <span className="text-lg">{p.emoji}</span>
+              <span className="text-2xl">{p.emoji}</span>
               <div className="flex-1">
                 <p className="text-sm font-semibold">{p.name}</p>
                 <p className="text-[10px] text-muted">

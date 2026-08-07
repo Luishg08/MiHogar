@@ -20,7 +20,7 @@ export function ProductCard({ product }: { product: Product }) {
       onClick={() => navigate(`/product/${product.id}`)}
     >
       <div
-        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl ${
+        className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-3xl ${
           lowStock ? 'bg-[var(--accent-soft)]' : 'bg-[var(--surface-2)]'
         }`}
       >
@@ -44,12 +44,12 @@ export function ProductCard({ product }: { product: Product }) {
         {product.categories && product.categories.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {product.categories.slice(0, 2).map((c) => (
-              <span key={c.id} className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'var(--primary-soft)', color: 'var(--primary)' }}>
+              <span key={c.id} className="rounded-full px-1.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: 'var(--primary-soft)', color: 'var(--primary)' }}>
                 {c.emoji} {c.name}
               </span>
             ))}
             {product.categories.length > 2 && (
-              <span className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold text-muted">
+              <span className="rounded-full px-1.5 py-0.5 text-[11px] font-semibold text-muted">
                 +{product.categories.length - 2}
               </span>
             )}

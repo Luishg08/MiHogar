@@ -51,7 +51,7 @@ export function ProductDetailPage() {
 
       <div className="card overflow-hidden">
         <div className="flex flex-col items-center gap-3 p-6 pb-4">
-          <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-[var(--surface-2)] text-6xl">
+          <div className="flex h-32 w-32 items-center justify-center rounded-3xl bg-[var(--surface-2)] text-7xl">
             {product.photo_url ? (
               <img src={product.photo_url} alt={product.name} className="h-full w-full rounded-3xl object-cover" />
             ) : (
