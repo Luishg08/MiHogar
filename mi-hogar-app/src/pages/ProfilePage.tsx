@@ -16,7 +16,7 @@ import {
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/app'
 import { Avatar } from '@/components/Avatar'
-import { AvatarCropModal } from '@/components/AvatarCropModal'
+import { ImageCropModal } from '@/components/ImageCropModal'
 import { getPalettes, isValidHex } from '@/lib/theme'
 import type { AdminUser, Theme } from '@/types'
 import { supabase } from '@/lib/supabase'
@@ -375,7 +375,7 @@ export function ProfilePage() {
         <LogOut className="h-5 w-5" /> Cerrar sesión
       </button>
 
-      <AvatarCropModal open={!!cropSrc} src={cropSrc} onCancel={() => { URL.revokeObjectURL(cropSrc ?? ''); setCropSrc(null) }} onConfirm={(blob) => void saveAvatar(blob)} />
+      <ImageCropModal open={!!cropSrc} src={cropSrc} shape="circle" title="Ajustar foto de perfil" onCancel={() => { URL.revokeObjectURL(cropSrc ?? ''); setCropSrc(null) }} onConfirm={(blob) => void saveAvatar(blob)} />
     </div>
   )
 }

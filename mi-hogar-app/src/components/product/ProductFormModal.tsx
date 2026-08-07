@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, Minus, Plus, X } from 'lucide-react'
+import { Camera, Minus, Plus, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAppStore } from '@/store/app'
 import { Modal } from '@/components/Modal'
+import { ImageSearchModal } from '@/components/ImageSearchModal'
 import { EmojiPicker } from '@/components/product/EmojiPicker'
 import type { Product } from '@/types'
 
@@ -32,6 +33,7 @@ export function ProductFormModal({ open, onClose, product }: Props) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -62,6 +64,25 @@ export function ProductFormModal({ open, onClose, product }: Props) {
       setPhotoUrl(data.publicUrl)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo subir la foto')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handlePickedImage = async (blob: Blob) => {
+    if (!home) return
+    setUploading(true)
+    try {
+      const path = `${home.id}/${crypto.randomUUID()}.jpg`
+      const { error } = await supabase.storage
+        .from('product-photos')
+        .upload(path, blob, { contentType: 'image/jpeg', cacheControl: '3600' })
+      if (error) throw error
+      const { data } = supabase.storage.from('product-photos').getPublicUrl(path)
+      setPhotoUrl(data.publicUrl)
+      toast.success('Imagen asignada al producto')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar la imagen')
     } finally {
       setUploading(false)
     }
@@ -217,6 +238,15 @@ export function ProductFormModal({ open, onClose, product }: Props) {
                 <span className="text-[9px] font-semibold">{uploading ? 'Subiendo' : 'Foto'}</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              disabled={!online}
+              className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border border-dashed border-[var(--border)] text-muted"
+            >
+              <Search className="h-5 w-5" />
+              <span className="text-[9px] font-semibold">Buscar</span>
+            </button>
             <input
               ref={fileRef}
               type="file"
@@ -228,7 +258,7 @@ export function ProductFormModal({ open, onClose, product }: Props) {
               }}
             />
             <p className="text-xs text-muted">
-              Toma una foto del producto o la etiqueta para identificarlo mejor.
+              Sube una foto o busca una imagen de internet para identificarlo mejor.
             </p>
           </div>
         </div>
@@ -265,6 +295,13 @@ export function ProductFormModal({ open, onClose, product }: Props) {
           {loading ? 'Guardando...' : product ? 'Guardar cambios' : 'Agregar producto'}
         </button>
       </form>
+
+      <ImageSearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        initialQuery={name}
+        onPick={handlePickedImage}
+      />
     </Modal>
   )
 }

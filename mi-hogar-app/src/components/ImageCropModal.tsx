@@ -5,6 +5,8 @@ import { ImagePlus } from 'lucide-react'
 interface Props {
   open: boolean
   src: string | null
+  shape?: 'circle' | 'square'
+  title?: string
   onCancel: () => void
   onConfirm: (blob: Blob) => void
 }
@@ -17,7 +19,7 @@ interface ImgMeta {
   naturalH: number
 }
 
-export function AvatarCropModal({ open, src, onCancel, onConfirm }: Props) {
+export function ImageCropModal({ open, src, shape = 'circle', title = 'Ajustar foto', onCancel, onConfirm }: Props) {
   const [meta, setMeta] = useState<ImgMeta | null>(null)
   const [zoom, setZoom] = useState(1)
   const [pos, setPos] = useState({ x: 0, y: 0 })
@@ -25,6 +27,8 @@ export function AvatarCropModal({ open, src, onCancel, onConfirm }: Props) {
   const startRef = useRef({ px: 0, py: 0, x: 0, y: 0 })
   const [outputting, setOutputting] = useState(false)
   const imgRef = useRef<HTMLImageElement | null>(null)
+
+  const frameClass = shape === 'circle' ? 'rounded-full' : 'rounded-2xl'
 
   useEffect(() => {
     if (!open || !src) return
@@ -105,21 +109,21 @@ export function AvatarCropModal({ open, src, onCancel, onConfirm }: Props) {
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
       <div
         className="relative z-10 w-full max-w-sm rounded-3xl bg-[var(--surface)] p-5 shadow-2xl"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
       >
         <h3 className="mb-1 flex items-center gap-2 text-lg font-bold">
-          <ImagePlus className="h-5 w-5 text-[var(--primary)]" /> Ajustar foto de perfil
+          <ImagePlus className="h-5 w-5 text-[var(--primary)]" /> {title}
         </h3>
         <p className="mb-4 text-xs text-muted">
-          Arrastra la imagen y usa el zoom para elegir qué parte quieres en el círculo.
+          Arrastra la imagen y usa el zoom para elegir qué parte quieres en la foto.
         </p>
 
         <div
-          className="relative mx-auto overflow-hidden rounded-full select-none"
+          className={`relative mx-auto overflow-hidden ${frameClass} select-none`}
           style={{ width: SIZE, height: SIZE, touchAction: 'none', cursor: dragging ? 'grabbing' : 'grab' }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -149,7 +153,9 @@ export function AvatarCropModal({ open, src, onCancel, onConfirm }: Props) {
               Cargando imagen...
             </div>
           )}
-          <div className="pointer-events-none absolute inset-0 rounded-full border-2 border-white/80 shadow-[0_0_0_100vmax_rgba(0,0,0,0.5)]" />
+          <div
+            className={`pointer-events-none absolute inset-0 border-2 border-white/80 shadow-[0_0_0_100vmax_rgba(0,0,0,0.5)] ${frameClass}`}
+          />
         </div>
 
         <div className="mt-5 flex items-center gap-3">
