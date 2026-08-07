@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ImagePlus } from 'lucide-react'
 
 interface Props {
@@ -103,7 +104,7 @@ export function AvatarCropModal({ open, src, onCancel, onConfirm }: Props) {
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
       <div
@@ -179,6 +180,7 @@ export function AvatarCropModal({ open, src, onCancel, onConfirm }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
